@@ -1,16 +1,22 @@
 import os, io, base64, requests
 from dotenv import dotenv_values
 from crewai import Agent, Task, Crew, Process
-from crewai_tools import tool
+from crewai_tools import tool, SerperDevTool, WebsiteSearchTool
+from langchain_openai import ChatOpenAI
 from PIL import Image
 
 env = dotenv_values(".env")
 
 api_key = env["OPENAI_API_KEY"]
-model = "gpt-4o"
+model_key = "gpt-4o"
+serper_key = env["SERPER_API_KEY"]
 
 os.environ["OPENAI_API_KEY"] = api_key
-os.environ["OPENAI_MODEL_NAME"] = model
+os.environ["OPENAI_MODEL_NAME"] = model_key
+os.environ["SERPER_API_KEY"] = serper_key
+
+search_tool = SerperDevTool()
+web_rag_tool = WebsiteSearchTool()
 
 
 def encode_image(image_path, max_size=(2000, 2000)):
@@ -35,7 +41,7 @@ def analyse_image(image_path: str) -> str:
     }
 
     payload = {
-        "model": model,
+        "model": model_key,
         "messages": [
             {
                 "role": "user",
@@ -63,33 +69,131 @@ def analyse_image(image_path: str) -> str:
     return content
 
 
-image_describer_agent = Agent(
-    role="Image Describer",
-    goal="To describe the following {image} in a way that is useful to people who are blind or visually impaired.",
-    verbose=True,
+instagram_post_agent = Agent(
+    role="Instagram Post Writer",
+    goal="To create engaging Instagram posts based on the provided {image}.",
     memory=True,
     tools=[analyse_image],
     backstory=(
-        "I am a computer program that has been trained to describe images"
-        "in a way that is useful to people who are blind or visually impaired."
+        "I am a computer program that has been trained to create engaging Instagram posts"
+        "based on the provided image."
     ),
 )
 
-image_describer_task = Task(
-    description=(
-        "Compose an insightful and detailed description of the following image {image}"
+hashtag_research_agent = Agent(
+    role="Hashtag Research Analyst",
+    goal="To review and analyse the effectiveness of hashtags used in social media posts"
+    "and suggest improvements for better reach and engagement.",
+    memory=True,
+    tools=[search_tool, web_rag_tool],
+    backstory=(
+        "I am a hashtag guardian to review hashtags"
+        "and provide suggestions for improvement."
     ),
-    expected_output="A few sentences that describe the following image {image}. The description should be detailed and insightful.",
-    agent=image_describer_agent,
+)
+
+location_research_agent = Agent(
+    role="Location Research Analyst",
+    goal="To research and provide detailed information about the location where the image was taken."
+    "The image is titled {image_title}.",
+    memory=True,
+    tools=[search_tool, web_rag_tool],
+    backstory=(
+        "I am a location research analyst, skilled in researching locations"
+        "based on the information provided in the image title."
+    ),
+)
+
+instagram_post_review_agent = Agent(
+    role="Instagram Post Reviewer",
+    goal="To review Instagram posts and ensure they are focused on the following {image} and its contents,"
+    "and that the caption does not exceed 2000 characters including hashtags."
+    "Also ensure that the post is engaging and interesting and has relevant emojis.",
+    memory=True,
+    tools=[analyse_image],
+    backstory=(
+        "I am a computer program that has been trained to review Instagram posts"
+        "and ensure they meet the specified criteria."
+    ),
+)
+
+output_format_agent = Agent(
+    role="Output Formatter",
+    goal="To ensure the final output contains only the caption of the Instagram post.",
+    memory=True,
+    backstory=(
+        "I am a computer program that has been trained to format text outputs"
+        "and ensure they meet the specified format."
+    ),
+)
+
+instagram_post_task = Task(
+    description=(
+        "Compose an engaging Instagram post using the following image {image}"
+    ),
+    expected_output="An Instagram post using the following image {image}."
+    "The post should be engaging and interesting."
+    "Should include emojis where appropriate to make the post more fun and engaging."
+    "And also include relevant hashtags to increase the reach of the post.",
+    agent=instagram_post_agent,
+)
+
+hashtag_research_task = Task(
+    description="Analyse the hashtags and provide suggestions for improvement.",
+    expected_output="A list of hashtags with suggestions for improvement.",
+    agent=hashtag_research_agent,
+)
+
+location_research_task = Task(
+    description=(
+        "Research and provide detailed information about the location where the image titled {image_title} was taken."
+    ),
+    expected_output="Detailed information about the location where the image titled {image_title} was taken.",
+    agent=location_research_agent,
+)
+
+instagram_post_review_task = Task(
+    description=(
+        "Review the Instagram post and ensure it is focused on the following {image} and its contents. "
+        "Also, ensure that the caption does not exceed 2000 characters including hashtags."
+    ),
+    expected_output="A review report indicating whether the Instagram post meets the specified criteria.",
+    agent=instagram_post_review_agent,
+)
+
+output_format_task = Task(
+    description=(
+        "Format the final output to ensure it contains only the caption of the Instagram post. Noting else should be included. Exclude any titles or markdowns."
+    ),
+    expected_output="only the caption of the Instagram post.",
+    agent=output_format_agent,
 )
 
 crew = Crew(
-    agents=[image_describer_agent],
-    tasks=[image_describer_task],
-    process=Process.sequential,
+    agents=[
+        instagram_post_agent,
+        hashtag_research_agent,
+        location_research_agent,
+        instagram_post_review_agent,
+        output_format_agent,
+    ],
+    tasks=[
+        instagram_post_task,
+        hashtag_research_task,
+        location_research_task,
+        instagram_post_review_task,
+        output_format_task,
+    ],
+    process=Process.hierarchical,
+    manager_llm=ChatOpenAI(model="gpt-4o"),
     memory=True,
     max_rpm=100,
 )
 
-result = crew.kickoff(inputs={"image": "image_1.jpg"})
+result = crew.kickoff(
+    inputs={
+        "image": "blue_hour_bridge_melbourne.jpg",
+        "image_title": "blue_hour_bridge_melbourne",
+    }
+)
 print(result)
