@@ -71,9 +71,13 @@ def analyse_image(image_path: str) -> str:
 
 instagram_post_agent = Agent(
     role="Instagram Post Writer",
-    goal="To create engaging Instagram posts based on the provided {image}.",
+    goal="To create engaging Instagram posts based on the provided {image}."
+    "The post should be engaging and interesting, include relevant emojis, and have a personal touch."
+    "The caption should not exceed 2000 characters including hashtags."
+    "The post should have a personal touch, for example using 'I' in a context 'I took this image...' or 'I visited this place...'.",
     memory=True,
     tools=[analyse_image],
+    verbose=False,
     backstory=(
         "I am a computer program that has been trained to create engaging Instagram posts"
         "based on the provided image."
@@ -86,6 +90,7 @@ hashtag_research_agent = Agent(
     "and suggest improvements for better reach and engagement.",
     memory=True,
     tools=[search_tool, web_rag_tool],
+    verbose=False,
     backstory=(
         "I am a hashtag guardian to review hashtags"
         "and provide suggestions for improvement."
@@ -98,6 +103,7 @@ location_research_agent = Agent(
     "The image is titled {image_title}.",
     memory=True,
     tools=[search_tool, web_rag_tool],
+    verbose=False,
     backstory=(
         "I am a location research analyst, skilled in researching locations"
         "based on the information provided in the image title."
@@ -108,9 +114,11 @@ instagram_post_review_agent = Agent(
     role="Instagram Post Reviewer",
     goal="To review Instagram posts and ensure they are focused on the following {image} and its contents,"
     "and that the caption does not exceed 2000 characters including hashtags."
-    "Also ensure that the post is engaging and interesting and has relevant emojis.",
+    "Also ensure that the post is engaging and interesting and has relevant emojis."
+    "The post also needs to ensure has a personal touch, for example using 'I' in a context 'I took this image...' or 'I visited this place...'.",
     memory=True,
     tools=[analyse_image],
+    verbose=False,
     backstory=(
         "I am a computer program that has been trained to review Instagram posts"
         "and ensure they meet the specified criteria."
@@ -121,6 +129,7 @@ output_format_agent = Agent(
     role="Output Formatter",
     goal="To ensure the final output contains only the caption of the Instagram post.",
     memory=True,
+    verbose=False,
     backstory=(
         "I am a computer program that has been trained to format text outputs"
         "and ensure they meet the specified format."
@@ -134,7 +143,8 @@ instagram_post_task = Task(
     expected_output="An Instagram post using the following image {image}."
     "The post should be engaging and interesting."
     "Should include emojis where appropriate to make the post more fun and engaging."
-    "And also include relevant hashtags to increase the reach of the post.",
+    "And also include relevant hashtags to increase the reach of the post."
+    "The caption should have a personal touch, for example using 'I' in a context 'I took this image...' or 'I visited this place...'.",
     agent=instagram_post_agent,
 )
 
@@ -186,14 +196,16 @@ crew = Crew(
     ],
     process=Process.hierarchical,
     manager_llm=ChatOpenAI(model="gpt-4o"),
+    full_output=False,
+    verbose=False,
     memory=True,
     max_rpm=100,
 )
 
 result = crew.kickoff(
     inputs={
-        "image": "blue_hour_bridge_melbourne.jpg",
-        "image_title": "blue_hour_bridge_melbourne",
+        "image": "wilson_promontory_national_park_whisky_bay.jpg",
+        "image_title": "wilson_promontory_national_park_whisky_bay",
     }
 )
 print(result)
