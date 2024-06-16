@@ -4,6 +4,7 @@ from crewai import Agent, Task, Crew, Process
 from crewai_tools import tool, SerperDevTool, WebsiteSearchTool
 from langchain_openai import ChatOpenAI
 from PIL import Image
+from instagram_poster import post_on_instagram
 
 env = dotenv_values(".env")
 
@@ -14,6 +15,9 @@ serper_key = env["SERPER_API_KEY"]
 os.environ["OPENAI_API_KEY"] = api_key
 os.environ["OPENAI_MODEL_NAME"] = model_key
 os.environ["SERPER_API_KEY"] = serper_key
+
+image_name = "toorongo_falls.jpg"
+image_path = os.path.abspath(image_name)
 
 search_tool = SerperDevTool()
 web_rag_tool = WebsiteSearchTool()
@@ -204,8 +208,10 @@ crew = Crew(
 
 result = crew.kickoff(
     inputs={
-        "image": "wilson_promontory_national_park_whisky_bay.jpg",
-        "image_title": "wilson_promontory_national_park_whisky_bay",
+        "image": image_name,
+        "image_title": image_name.split(".")[0],
     }
 )
-print(result)
+
+
+post_on_instagram(image_path, result)
